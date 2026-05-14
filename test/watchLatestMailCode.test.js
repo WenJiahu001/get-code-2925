@@ -20,9 +20,9 @@ describe("parsePollIntervalSeconds", () => {
 });
 
 describe("getMailCodeFingerprint", () => {
-  it("用验证码、发件人和时间共同判断是否变化", () => {
+  it("只用验证码判断是否变化", () => {
     expect(getMailCodeFingerprint({ code: "123456", sender: "a@example.com", time: "2026-05-13T10:00:00.000Z" }))
-      .toBe(getMailCodeFingerprint({ code: "123456", sender: "a@example.com", time: "2026-05-13T10:00:00.000Z" }));
+      .toBe(getMailCodeFingerprint({ code: "123456", sender: "b@example.com", time: "2026-05-13T10:01:00.000Z" }));
 
     expect(getMailCodeFingerprint({ code: "654321", sender: "a@example.com", time: "2026-05-13T10:00:00.000Z" }))
       .not.toBe(getMailCodeFingerprint({ code: "123456", sender: "a@example.com", time: "2026-05-13T10:00:00.000Z" }));

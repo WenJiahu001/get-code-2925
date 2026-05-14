@@ -22,6 +22,7 @@ MAIL_LOGIN_METHOD=LOGIN
 MAILBOX=INBOX
 CODE_REGEX=\b\d{4,8}\b
 POLL_INTERVAL_SECONDS=5
+RECENT_MAIL_LIMIT=20
 ```
 
 建议使用邮箱服务商提供的 IMAP 授权码或应用专用密码，不要把登录密码、cookie 或 token 写入代码。
@@ -46,7 +47,7 @@ pnpm fetch-code
 pnpm watch-code
 ```
 
-程序会每隔 `POLL_INTERVAL_SECONDS` 秒读取一次最新邮件；只有检测到验证码、发件人或邮件时间发生变化时，才会重新打印结果。按 `Ctrl+C` 停止检测。
+程序会每隔 `POLL_INTERVAL_SECONDS` 秒扫描最近 `RECENT_MAIL_LIMIT` 封邮件，按邮件时间选择最新的验证码邮件；只有检测到验证码本身发生变化时，才会重新打印结果。按 `Ctrl+C` 停止检测。
 
 ## 测试
 

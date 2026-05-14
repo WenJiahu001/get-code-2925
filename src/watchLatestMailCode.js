@@ -20,7 +20,7 @@ export function parsePollIntervalSeconds(value, defaultValue = DEFAULT_POLL_INTE
 }
 
 export function getMailCodeFingerprint(result) {
-  return [result.code, result.sender, result.time].join("\u0000");
+  return result.code;
 }
 
 export async function watchLatestMailCode({

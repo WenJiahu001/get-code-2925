@@ -3,6 +3,8 @@ import { simpleParser } from "mailparser";
 import fs from "node:fs";
 import { DEFAULT_CODE_REGEX, parseCode } from "./parseCode.js";
 
+const DEFAULT_RECENT_MAIL_LIMIT = 20;
+
 function required(value, name) {
   if (!value) {
     throw new Error(`缺少必要环境变量：${name}`);
@@ -17,6 +19,19 @@ function toBoolean(value, defaultValue = true) {
   }
 
   return String(value).toLowerCase() === "true";
+}
+
+function toPositiveInteger(value, defaultValue, name) {
+  if (value === undefined || value === "") {
+    return defaultValue;
+  }
+
+  const number = Number(value);
+  if (!Number.isInteger(number) || number <= 0) {
+    throw new Error(`${name} 必须是大于 0 的整数`);
+  }
+
+  return number;
 }
 
 function validateDotenvPassword(env = process.env) {
@@ -89,7 +104,60 @@ export function buildMailConfig(env = process.env) {
       loginMethod: env.MAIL_LOGIN_METHOD || "LOGIN"
     },
     mailbox: env.MAILBOX || "INBOX",
-    codeRegex: env.CODE_REGEX || DEFAULT_CODE_REGEX
+    codeRegex: env.CODE_REGEX || DEFAULT_CODE_REGEX,
+    recentMailLimit: toPositiveInteger(env.RECENT_MAIL_LIMIT, DEFAULT_RECENT_MAIL_LIMIT, "RECENT_MAIL_LIMIT")
+  };
+}
+
+function toValidDate(value) {
+  if (!value) {
+    return null;
+  }
+
+  const date = value instanceof Date ? value : new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function getMessageDate(parsed, message) {
+  return toValidDate(parsed.date) || toValidDate(message.envelope?.date) || toValidDate(message.internalDate);
+}
+
+export async function selectLatestCodeFromMessages(messages, codeRegex = DEFAULT_CODE_REGEX) {
+  let latestCodeMessage = null;
+
+  for (const message of messages) {
+    if (!message?.source) {
+      continue;
+    }
+
+    const parsed = await simpleParser(message.source);
+    const code = parseCode({ text: parsed.text, html: parsed.html }, codeRegex);
+    if (!code) {
+      continue;
+    }
+
+    const date = getMessageDate(parsed, message);
+    const timestamp = date?.getTime() ?? 0;
+    const candidate = {
+      code,
+      sender: parsed.from?.text || "未知",
+      time: date ? date.toISOString() : "未知",
+      timestamp
+    };
+
+    if (!latestCodeMessage || candidate.timestamp > latestCodeMessage.timestamp) {
+      latestCodeMessage = candidate;
+    }
+  }
+
+  if (!latestCodeMessage) {
+    return null;
+  }
+
+  return {
+    code: latestCodeMessage.code,
+    sender: latestCodeMessage.sender,
+    time: latestCodeMessage.time
   };
 }
 
@@ -112,26 +180,18 @@ export async function fetchLatestMailCode(config) {
         throw new Error(`邮箱 ${config.mailbox} 中没有邮件`);
       }
 
-      const latest = await client.fetchOne("*", { source: true });
-      if (!latest?.source) {
-        throw new Error("无法读取最新邮件内容");
+      const start = Math.max(1, client.mailbox.exists - config.recentMailLimit + 1);
+      const messages = [];
+      for await (const message of client.fetch(`${start}:*`, { source: true, envelope: true, internalDate: true })) {
+        messages.push(message);
       }
 
-      const parsed = await simpleParser(latest.source);
-      const code = parseCode({ text: parsed.text, html: parsed.html }, config.codeRegex);
-
-      if (!code) {
-        throw new Error("最新邮件中未找到验证码");
+      const latestCode = await selectLatestCodeFromMessages(messages, config.codeRegex);
+      if (!latestCode) {
+        throw new Error(`最近 ${messages.length} 封邮件中未找到验证码`);
       }
 
-      return {
-        code,
-        sender: parsed.from?.text || "未知",
-        time:
-          parsed.date instanceof Date && !Number.isNaN(parsed.date.getTime())
-            ? parsed.date.toISOString()
-            : "未知"
-      };
+      return latestCode;
     } finally {
       lock.release();
     }
@@ -139,6 +199,8 @@ export async function fetchLatestMailCode(config) {
     await client.logout().catch(() => {});
   }
 }
+
+export { DEFAULT_RECENT_MAIL_LIMIT };
 
 export async function diagnoseImapConnection(config) {
   let lastClientError;
