@@ -1,0 +1,21 @@
+{
+  "name": "mail-code-fetcher",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "diagnose-imap": "node src/diagnoseImap.js",
+    "fetch-code": "node src/cli.js",
+    "watch-code": "node src/watchCode.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "dotenv": "^16.4.7",
+    "html-to-text": "^9.0.5",
+    "imapflow": "^1.0.164",
+    "mailparser": "^3.7.2"
+  },
+  "devDependencies": {
+    "vitest": "^2.1.8"
+  }
+}
